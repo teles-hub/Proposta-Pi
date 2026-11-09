@@ -583,8 +583,8 @@ public class ProjetoPi {
                     System.out.printf("Faturamento Bruto Total:    R$ %.2f%n", faturamentoTotalDia);
                     System.out.println("---------------------------------------------------------");
                     System.out.println("IMPOSTOS E ALÍQUOTAS CBS (NOVO SISTEMA TRIBUTÁRIO):");
-                    System.out.printf("• CBS Bruta nas Notas de Venda (9,21%%):   R$ %.2f%n", cbsRetidaVenda);
-                    System.out.printf("• Impacto Efetivo da CBS no Caixa (3,68%%): R$ %.2f%n", cbsEfetivaCaixa);
+                    System.out.printf("  CBS Bruta nas Notas de Venda (9,21%%):   R$ %.2f%n", cbsRetidaVenda);
+                    System.out.printf("  Impacto Efetivo da CBS no Caixa (3,68%%): R$ %.2f%n", cbsEfetivaCaixa);
                     System.out.println("---------------------------------------------------------");
                     System.out.printf("GASTO TOTAL COM CBS NO DIA:               R$ %.2f%n", cbsEfetivaCaixa);
                     System.out.printf("RECEITA LIQUIDA DO DIA (APOS CBS):        R$ %.2f%n", faturamentoTotalDia - cbsEfetivaCaixa);
