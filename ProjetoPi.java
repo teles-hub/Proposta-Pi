@@ -1,5 +1,6 @@
 import java.util.ArrayList;
 import java.util.InputMismatchException;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 public class ProjetoPi {
@@ -43,7 +44,7 @@ public class ProjetoPi {
             int[] codigosVipInicializador = {200, 201, 202, 203, 204, 205, 206, 207, 208, 209};
             String[] nomesVipInicializador = {
                 "Nike Air Max 95", "Nike Air Max 97", "Nike Air Max Plus (TN)",
-                "Nike Air Jordan 1", "Nike Air Jordan 4", "Nike Air Jordan 11",
+                "Nike Air Jordan 1 Mid", "Nike Air Jordan 4", "Nike Air Jordan 11",
                 "Nike Blazer Mid", "Nike Cortez", "Nike P-6000", "Nike LeBron 22"
             };
             double[] precosVipInicializador = {1399.99, 1424.99, 1329.99, 1499.99, 1709.99, 1709.99, 885.15, 645.99, 854.99, 1519.99};
@@ -71,10 +72,20 @@ public class ProjetoPi {
 
             // Acumuladores para o relatório final de gastos e impostos do dia
             double faturamentoTotalDia = 0.0;
+            double boletosAguardandoDia = 0.0; // Boleto só vira faturamento quando for pago, por isso fica separado
             int quantidadeVendasDia = 0;
 
-            // Senha do painel administrativo (troque por outra de sua preferência)
-            String senhaAdmin = "admin123";
+            // Alíquotas e descontos (podem ser alterados no painel administrativo)
+            double aliquotaImposto = 0.04;      // 4% de imposto
+            double aliquotaTaxa = 0.06;         // 6% de taxa
+            double aliquotaVip = 0.05;          // 5% de desconto VIP
+            double aliquotaPix = 0.05;          // 5% de desconto no PIX
+            double aliquotaCbsBruta = 0.0921;   // 9,21% de CBS bruta
+            double aliquotaCbsEfetiva = 0.0368; // 3,68% de CBS efetiva
+
+            // Senha do painel administrativo: guardamos o hash (String.hashCode) e não a senha em texto.
+            // Para trocar a senha: rode System.out.println("nova senha".hashCode()) e cole o número abaixo.
+            int senhaAdminHash = -969161597;
 
             // Loop principal do sistema
             boolean sistemaAtivo = true;
@@ -90,16 +101,35 @@ public class ProjetoPi {
                 System.out.println("\n=========================================");
                 System.out.println("    LOJA DE TÊNIS CUSTOMIZADOS          ");
                 System.out.println("=========================================");
-                System.out.print("\nPossui cartão exclusivo da loja? (sim [s] / não [n] / admin [a]): ");
-                String possuiCartao = ent.nextLine().trim();
+                String possuiCartao = "";
+                boolean respostaCartaoValida = false;
+                while (!respostaCartaoValida) {
+                    System.out.print("\nPossui cartão exclusivo da loja? (sim [s] / não [n] / admin [a]): ");
+                    possuiCartao = ent.nextLine().trim();
+                    respostaCartaoValida = possuiCartao.equalsIgnoreCase("s") || possuiCartao.equalsIgnoreCase("sim")
+                            || possuiCartao.equalsIgnoreCase("n") || possuiCartao.equalsIgnoreCase("nao") || possuiCartao.equalsIgnoreCase("não")
+                            || possuiCartao.equalsIgnoreCase("a") || possuiCartao.equalsIgnoreCase("admin");
+                    if (!respostaCartaoValida) {
+                        System.out.println(">> Resposta inválida! Digite s (sim), n (não) ou a (admin).");
+                    }
+                }
 
                 // Modificar produtos por uma aba de adm
                 if (possuiCartao.equalsIgnoreCase("a") || possuiCartao.equalsIgnoreCase("admin")) {
-                    System.out.print("Digite a senha do administrador: ");
-                    String senhaDigitada = ent.nextLine().trim();
-                    boolean emModoAdmin = senhaDigitada.equals(senhaAdmin);
+                    boolean emModoAdmin = false;
+                    int tentativasSenha = 0;
+                    while (!emModoAdmin && tentativasSenha < 3) {
+                        System.out.print("Digite a senha do administrador: ");
+                        String senhaDigitada = ent.nextLine().trim();
+                        if (senhaDigitada.hashCode() == senhaAdminHash) {
+                            emModoAdmin = true;
+                        } else {
+                            tentativasSenha++;
+                            System.out.println(">> Senha incorreta! Tentativa " + tentativasSenha + " de 3.");
+                        }
+                    }
                     if (!emModoAdmin) {
-                        System.out.println(">> Senha incorreta! Acesso ao painel administrativo negado.\n");
+                        System.out.println(">> Acesso ao painel administrativo negado.\n");
                     }
                     while (emModoAdmin) {
                         System.out.println("\n=========================================");
@@ -109,7 +139,8 @@ public class ProjetoPi {
                         System.out.println("2 - Repor/Alterar Estoque de Produto");
                         System.out.println("3 - Adicionar Novo Produto ao Catálogo");
                         System.out.println("4 - Remover Produto do Catálogo");
-                        System.out.println("5 - Sair do Modo Admin e Ir para a Loja");
+                        System.out.println("5 - Alterar Alíquotas e Descontos");
+                        System.out.println("6 - Sair do Modo Admin e Ir para a Loja");
                         System.out.print("Escolha uma opção: ");
 
                         try {
@@ -121,13 +152,14 @@ public class ProjetoPi {
                                 int opcaoCatalogo = ent.nextInt();
                                 System.out.print("Digite o código do produto: ");
                                 int codigoProdutoAlvo = ent.nextInt();
-                                System.out.print("Digite o novo preço: R$ ");
-                                double precoProdutoNovo = ent.nextDouble();
                                 ent.nextLine(); // Limpeza do buffer
+                                System.out.print("Digite o novo preço: R$ ");
+                                // Aceita ponto ou vírgula, independente da região do computador
+                                double precoProdutoNovo = Double.parseDouble(ent.nextLine().trim().replace(',', '.'));
 
                                 if (opcaoCatalogo != 1 && opcaoCatalogo != 2) {
                                     System.out.println(">> Catálogo inválido! Escolha 1 ou 2.");
-                                } else if (precoProdutoNovo <= 0) {
+                                } else if (!(precoProdutoNovo > 0 && precoProdutoNovo < Double.POSITIVE_INFINITY)) {
                                     System.out.println(">> Preço inválido! O preço deve ser maior que zero.");
                                 } else {
                                     ArrayList<Integer> listaCodigos = (opcaoCatalogo == 2) ? codigosVip : codigosNormal;
@@ -171,9 +203,10 @@ public class ProjetoPi {
                                 int codigoProdutoNovo = ent.nextInt();
                                 ent.nextLine(); // Limpeza do buffer
                                 System.out.print("Digite o nome do produto: ");
-                                String nomeProdutoNovo = ent.nextLine();
+                                String nomeProdutoNovo = ent.nextLine().trim();
                                 System.out.print("Digite o preço: R$ ");
-                                double precoProdutoNovo = ent.nextDouble();
+                                // Aceita ponto ou vírgula, independente da região do computador
+                                double precoProdutoNovo = Double.parseDouble(ent.nextLine().trim().replace(',', '.'));
                                 System.out.print("Digite a quantidade inicial de estoque: ");
                                 int estoqueProdutoNovo = ent.nextInt();
                                 ent.nextLine(); // Limpeza do buffer
@@ -188,9 +221,11 @@ public class ProjetoPi {
 
                                 if (opcaoCatalogo != 1 && opcaoCatalogo != 2) {
                                     System.out.println(">> Catálogo inválido! Escolha 1 ou 2.");
+                                } else if (nomeProdutoNovo.isEmpty()) {
+                                    System.out.println(">> O nome do produto não pode ficar em branco!");
                                 } else if (codigoJaExiste) {
                                     System.out.println(">> Já existe um produto com esse código neste catálogo!");
-                                } else if (precoProdutoNovo <= 0 || estoqueProdutoNovo < 0) {
+                                } else if (!(precoProdutoNovo > 0 && precoProdutoNovo < Double.POSITIVE_INFINITY) || estoqueProdutoNovo < 0) {
                                     System.out.println(">> Preço deve ser maior que zero e estoque não pode ser negativo!");
                                 } else {
                                     if (opcaoCatalogo == 2) {
@@ -233,6 +268,41 @@ public class ProjetoPi {
                                     }
                                 }
                             } else if (opcaoAdmin == 5) {
+                                System.out.println("\n--- ALÍQUOTAS E DESCONTOS ATUAIS ---");
+                                System.out.printf("1 - Imposto sobre a venda:          %.2f%%%n", aliquotaImposto * 100);
+                                System.out.printf("2 - Taxa sobre a venda:             %.2f%%%n", aliquotaTaxa * 100);
+                                System.out.printf("3 - Desconto VIP:                   %.2f%%%n", aliquotaVip * 100);
+                                System.out.printf("4 - Desconto no PIX:                %.2f%%%n", aliquotaPix * 100);
+                                System.out.printf("5 - CBS bruta (nota de venda):      %.2f%%%n", aliquotaCbsBruta * 100);
+                                System.out.printf("6 - CBS efetiva (impacto no caixa): %.2f%%%n", aliquotaCbsEfetiva * 100);
+                                System.out.print("Qual deseja alterar? (1 a 6): ");
+                                int opcaoAliquota = ent.nextInt();
+                                ent.nextLine(); // Limpeza do buffer
+                                System.out.print("Digite o novo valor em porcentagem (0 a 100): ");
+                                // Aceita ponto ou vírgula, independente da região do computador
+                                double novaAliquota = Double.parseDouble(ent.nextLine().trim().replace(',', '.')) / 100;
+
+                                if (opcaoAliquota < 1 || opcaoAliquota > 6) {
+                                    System.out.println(">> Opção inválida! Escolha de 1 a 6.");
+                                } else if (!(novaAliquota >= 0 && novaAliquota <= 1)) {
+                                    System.out.println(">> Valor inválido! Digite um número entre 0 e 100.");
+                                } else {
+                                    if (opcaoAliquota == 1) {
+                                        aliquotaImposto = novaAliquota;
+                                    } else if (opcaoAliquota == 2) {
+                                        aliquotaTaxa = novaAliquota;
+                                    } else if (opcaoAliquota == 3) {
+                                        aliquotaVip = novaAliquota;
+                                    } else if (opcaoAliquota == 4) {
+                                        aliquotaPix = novaAliquota;
+                                    } else if (opcaoAliquota == 5) {
+                                        aliquotaCbsBruta = novaAliquota;
+                                    } else {
+                                        aliquotaCbsEfetiva = novaAliquota;
+                                    }
+                                    System.out.println(">> Alíquota atualizada com sucesso!");
+                                }
+                            } else if (opcaoAdmin == 6) {
                                 emModoAdmin = false;
                                 System.out.println("\nSaindo do modo ADM...\n");
                             } else {
@@ -241,11 +311,22 @@ public class ProjetoPi {
                         } catch (InputMismatchException e) {
                             System.out.println(">> Entrada inválida no painel ADM!\n");
                             ent.nextLine(); // Limpa a entrada inválida
+                        } catch (NumberFormatException e) {
+                            // A linha já foi lida inteira, então não precisa limpar o buffer
+                            System.out.println(">> Valor numérico inválido! Use apenas números (ex.: 759.99 ou 759,99).\n");
                         }
                     }
 
-                    System.out.print("Possui cartão exclusivo da loja? (sim [s] / não [n]): ");
-                    possuiCartao = ent.nextLine().trim();
+                    boolean respostaCartaoAdminValida = false;
+                    while (!respostaCartaoAdminValida) {
+                        System.out.print("Possui cartão exclusivo da loja? (sim [s] / não [n]): ");
+                        possuiCartao = ent.nextLine().trim();
+                        respostaCartaoAdminValida = possuiCartao.equalsIgnoreCase("s") || possuiCartao.equalsIgnoreCase("sim")
+                                || possuiCartao.equalsIgnoreCase("n") || possuiCartao.equalsIgnoreCase("nao") || possuiCartao.equalsIgnoreCase("não");
+                        if (!respostaCartaoAdminValida) {
+                            System.out.println(">> Resposta inválida! Digite s (sim) ou n (não).");
+                        }
+                    }
                 }
 
                 boolean clienteExclusivo = false;
@@ -357,28 +438,50 @@ public class ProjetoPi {
                                     break;
                                 }
 
+                                // A última cor (Custom Especial) é exclusiva de quem tem o cartão
+                                int totalCoresDisponiveis = clienteExclusivo ? coresDisponiveis.length : coresDisponiveis.length - 1;
+
                                 System.out.println("\n--- ESCOLHA A COR DO MODELO ---");
-                                for (int indiceCor = 0; indiceCor < coresDisponiveis.length; indiceCor++) {
-                                    System.out.printf("%d - %s%n", (indiceCor + 1), coresDisponiveis[indiceCor]);
+                                for (int indiceCor = 0; indiceCor < totalCoresDisponiveis; indiceCor++) {
+                                    System.out.printf("%d - %s%s%n", (indiceCor + 1), coresDisponiveis[indiceCor],
+                                            (indiceCor == coresDisponiveis.length - 1) ? " (VIP)" : "");
                                 }
 
-                                int opcaoCor = 1;
-                                try {
-                                    System.out.print("Selecione a opção de cor: ");
-                                    opcaoCor = ent.nextInt();
-                                    ent.nextLine(); // Limpeza do buffer
-                                    if (opcaoCor < 1 || opcaoCor > coresDisponiveis.length) {
-                                        System.out.println("Opção de cor inválida, aplicando a cor padrão.");
-                                        opcaoCor = 1;
+                                int opcaoCor = 0;
+                                while (opcaoCor < 1 || opcaoCor > totalCoresDisponiveis) {
+                                    try {
+                                        System.out.print("Selecione a opção de cor: ");
+                                        opcaoCor = ent.nextInt();
+                                        ent.nextLine(); // Limpeza do buffer
+                                        if (opcaoCor < 1 || opcaoCor > totalCoresDisponiveis) {
+                                            System.out.println("Opção de cor inválida! Escolha de 1 a " + totalCoresDisponiveis + ".");
+                                        }
+                                    } catch (InputMismatchException e) {
+                                        System.out.println("Entrada inválida! Digite o número da cor.");
+                                        ent.nextLine();
+                                        opcaoCor = 0;
                                     }
-                                } catch (InputMismatchException e) {
-                                    System.out.println("Opção inválida, aplicando a cor padrão.");
-                                    ent.nextLine();
-                                    opcaoCor = 1;
+                                }
+
+                                // Numeração disponível: 34 ao 45
+                                int tamanhoEscolhido = 0;
+                                while (tamanhoEscolhido < 34 || tamanhoEscolhido > 45) {
+                                    try {
+                                        System.out.print("Digite o tamanho (34 a 45): ");
+                                        tamanhoEscolhido = ent.nextInt();
+                                        ent.nextLine(); // Limpeza do buffer
+                                        if (tamanhoEscolhido < 34 || tamanhoEscolhido > 45) {
+                                            System.out.println("Tamanho inválido! Escolha de 34 a 45.");
+                                        }
+                                    } catch (InputMismatchException e) {
+                                        System.out.println("Entrada inválida! Digite o número do tamanho.");
+                                        ent.nextLine();
+                                        tamanhoEscolhido = 0;
+                                    }
                                 }
 
                                 String corEscolhida = coresDisponiveis[opcaoCor - 1];
-                                String nomeComCor = nomesLoja.get(i) + " [" + corEscolhida + "]";
+                                String nomeComCor = nomesLoja.get(i) + " [" + corEscolhida + "] Tam. " + tamanhoEscolhido;
 
                                 estoqueLoja.set(i, estoqueLoja.get(i) - 1);
 
@@ -399,8 +502,16 @@ public class ProjetoPi {
                         }
                     }
 
-                    System.out.print("\nDeseja continuar a comprar? (sim [s] / não [n]): ");
-                    continuar = ent.nextLine().trim();
+                    boolean respostaContinuarValida = false;
+                    while (!respostaContinuarValida) {
+                        System.out.print("\nDeseja continuar a comprar? (sim [s] / não [n]): ");
+                        continuar = ent.nextLine().trim();
+                        respostaContinuarValida = continuar.equalsIgnoreCase("s") || continuar.equalsIgnoreCase("sim")
+                                || continuar.equalsIgnoreCase("n") || continuar.equalsIgnoreCase("nao") || continuar.equalsIgnoreCase("não");
+                        if (!respostaContinuarValida) {
+                            System.out.println(">> Resposta inválida! Digite s (sim) ou n (não).");
+                        }
+                    }
 
                 } while (continuar.equalsIgnoreCase("s") || continuar.equalsIgnoreCase("sim"));
 
@@ -408,11 +519,20 @@ public class ProjetoPi {
                 while (!carrinhoNomes.isEmpty()) {
                     System.out.println("\n--- ITENS NO CARRINHO ---");
                     for (int i = 0; i < carrinhoNomes.size(); i++) {
-                        System.out.printf("Item %-2d: %-38s | R$ %7.2f%n", (i + 1), carrinhoNomes.get(i), carrinhoPrecos.get(i));
+                        System.out.printf("Item %-2d: %-50s | R$ %7.2f%n", (i + 1), carrinhoNomes.get(i), carrinhoPrecos.get(i));
                     }
 
-                    System.out.print("\nDeseja remover algum item do carrinho? (sim [s] / não [n]): ");
-                    String respostaRemover = ent.nextLine().trim();
+                    String respostaRemover = "";
+                    boolean respostaRemoverValida = false;
+                    while (!respostaRemoverValida) {
+                        System.out.print("\nDeseja remover algum item do carrinho? (sim [s] / não [n]): ");
+                        respostaRemover = ent.nextLine().trim();
+                        respostaRemoverValida = respostaRemover.equalsIgnoreCase("s") || respostaRemover.equalsIgnoreCase("sim")
+                                || respostaRemover.equalsIgnoreCase("n") || respostaRemover.equalsIgnoreCase("nao") || respostaRemover.equalsIgnoreCase("não");
+                        if (!respostaRemoverValida) {
+                            System.out.println(">> Resposta inválida! Digite s (sim) ou n (não).");
+                        }
+                    }
 
                     if (!(respostaRemover.equalsIgnoreCase("s") || respostaRemover.equalsIgnoreCase("sim"))) {
                         break;
@@ -456,14 +576,14 @@ public class ProjetoPi {
                 }
 
                 // Cálculo de impostos e descontos locais do cliente
-                double imposto = 0.04; // 4%
-                double taxa = 0.06; // 6%
-                double descontoVIP = clienteExclusivo ? 0.05 : 0.0; // 5% VIP
+                // Cada valor é arredondado para centavos, para a soma nunca divergir do que aparece na tela
+                subtotal = Math.round(subtotal * 100.0) / 100.0;
+                double descontoVIP = clienteExclusivo ? aliquotaVip : 0.0;
 
-                double valorImposto = subtotal * imposto;
-                double valorTaxa = subtotal * taxa;
-                double valorDesconto = subtotal * descontoVIP;
-                double totalFinal = subtotal + valorImposto + valorTaxa - valorDesconto;
+                double valorImposto = Math.round(subtotal * aliquotaImposto * 100.0) / 100.0;
+                double valorTaxa = Math.round(subtotal * aliquotaTaxa * 100.0) / 100.0;
+                double valorDesconto = Math.round(subtotal * descontoVIP * 100.0) / 100.0;
+                double totalFinal = Math.round((subtotal + valorImposto + valorTaxa - valorDesconto) * 100.0) / 100.0;
 
                 System.out.println("\n=========================================================");
                 System.out.println("                    RESUMO DO PEDIDO                     ");
@@ -471,16 +591,16 @@ public class ProjetoPi {
 
                 if (!carrinhoNomes.isEmpty()) {
                     for (int i = 0; i < carrinhoNomes.size(); i++) {
-                        System.out.printf("Item %-2d: %-38s | R$ %7.2f%n", (i + 1), carrinhoNomes.get(i), carrinhoPrecos.get(i));
+                        System.out.printf("Item %-2d: %-50s | R$ %7.2f%n", (i + 1), carrinhoNomes.get(i), carrinhoPrecos.get(i));
                     }
 
                     System.out.println("---------------------------------------------------------");
                     System.out.printf("Subtotal:               R$%8.2f%n", subtotal);
-                    System.out.printf("Impostos (4%%):          R$%8.2f%n", valorImposto);
-                    System.out.printf("Taxas (6%%):             R$%8.2f%n", valorTaxa);
+                    System.out.printf("%-24sR$%8.2f%n", String.format("Impostos (%.2f%%):", aliquotaImposto * 100), valorImposto);
+                    System.out.printf("%-24sR$%8.2f%n", String.format("Taxas (%.2f%%):", aliquotaTaxa * 100), valorTaxa);
 
                     if (clienteExclusivo) {
-                        System.out.printf("Desconto VIP (5%%):     -R$%8.2f%n", valorDesconto);
+                        System.out.printf("%-23s-R$%8.2f%n", String.format("Desconto VIP (%.2f%%):", aliquotaVip * 100), valorDesconto);
                     }
 
                     System.out.println("---------------------------------------------------------");
@@ -490,7 +610,7 @@ public class ProjetoPi {
                     System.out.println("\n=========================================================");
                     System.out.println("                 FORMA DE PAGAMENTO                      ");
                     System.out.println("=========================================================");
-                    System.out.println("1 - PIX (5% de desconto adicional)");
+                    System.out.printf("1 - PIX (%.2f%% de desconto adicional)%n", aliquotaPix * 100);
                     System.out.println("2 - Cartão de Crédito (até 12x)");
                     System.out.println("3 - Cartão de Débito");
                     System.out.println("4 - Boleto Bancário");
@@ -515,28 +635,30 @@ public class ProjetoPi {
 
                     switch (formaPagamento) {
                         case 1:
-                            double descontoPix = totalFinal * 0.05;
-                            totalComPagamento -= descontoPix;
-                            System.out.println("\n>> Desconto de 5% no PIX aplicado!");
+                            double descontoPix = Math.round(totalFinal * aliquotaPix * 100.0) / 100.0;
+                            totalComPagamento = Math.round((totalFinal - descontoPix) * 100.0) / 100.0;
+                            System.out.printf("%n>> Desconto de %.2f%% no PIX aplicado!%n", aliquotaPix * 100);
                             System.out.printf(">> TOTAL COM DESCONTO PIX: R$ %.2f%n", totalComPagamento);
                             System.out.println(">> Chave PIX: 123e4567-e89b-12d3-a456-426614174000");
                             System.out.println(">> Pagamento confirmado com sucesso!");
                             break;
                         case 2:
-                            System.out.print("Digite o número de parcelas (1x a 12x): ");
-                            int numeroParcelas = 1;
-                            try {
-                                numeroParcelas = ent.nextInt();
-                                ent.nextLine(); // Limpeza do buffer
-                                if (numeroParcelas < 1 || numeroParcelas > 12) {
-                                    System.out.println("Número de parcelas inválido! Considerando pagamento à vista (1x).");
-                                    numeroParcelas = 1;
+                            int numeroParcelas = 0;
+                            while (numeroParcelas < 1 || numeroParcelas > 12) {
+                                try {
+                                    System.out.print("Digite o número de parcelas (1x a 12x): ");
+                                    numeroParcelas = ent.nextInt();
+                                    ent.nextLine(); // Limpeza do buffer
+                                    if (numeroParcelas < 1 || numeroParcelas > 12) {
+                                        System.out.println("Número de parcelas inválido! Escolha de 1 a 12.");
+                                    }
+                                } catch (InputMismatchException e) {
+                                    System.out.println("Entrada inválida! Digite um número de 1 a 12.");
+                                    ent.nextLine();
+                                    numeroParcelas = 0;
                                 }
-                            } catch (InputMismatchException e) {
-                                System.out.println("Entrada inválida! Considerando pagamento à vista (1x).");
-                                ent.nextLine();
                             }
-                            double valorParcela = totalComPagamento / numeroParcelas;
+                            double valorParcela = Math.round(totalComPagamento / numeroParcelas * 100.0) / 100.0;
                             System.out.printf("%n>> Pagamento parcelado em %dx de R$ %.2f%n", numeroParcelas, valorParcela);
                             System.out.println(">> Transação no Cartão de Crédito APROVADA!");
                             break;
@@ -553,8 +675,13 @@ public class ProjetoPi {
                             break;
                     }
 
-                    // Acumula para o fechamento do dia (valor realmente cobrado, já com o desconto do PIX)
-                    faturamentoTotalDia += totalComPagamento;
+                    // Acumula para o fechamento do dia (valor realmente cobrado, já com o desconto do PIX).
+                    // Boleto só entra no faturamento quando for pago, então fica em um acumulador separado.
+                    if (formaPagamento == 4) {
+                        boletosAguardandoDia = Math.round((boletosAguardandoDia + totalComPagamento) * 100.0) / 100.0;
+                    } else {
+                        faturamentoTotalDia = Math.round((faturamentoTotalDia + totalComPagamento) * 100.0) / 100.0;
+                    }
                     quantidadeVendasDia++;
 
                 } else {
@@ -566,28 +693,38 @@ public class ProjetoPi {
                 System.out.println("=========================================================");
 
                 // Pergunta final para decidir encerramento do dia
-                System.out.print("\nEsta foi a última venda do dia? (sim [s] / não [n]): ");
-                String ultimaVenda = ent.nextLine().trim();
+                String ultimaVenda = "";
+                boolean respostaUltimaValida = false;
+                while (!respostaUltimaValida) {
+                    System.out.print("\nEsta foi a última venda do dia? (sim [s] / não [n]): ");
+                    ultimaVenda = ent.nextLine().trim();
+                    respostaUltimaValida = ultimaVenda.equalsIgnoreCase("s") || ultimaVenda.equalsIgnoreCase("sim")
+                            || ultimaVenda.equalsIgnoreCase("n") || ultimaVenda.equalsIgnoreCase("nao") || ultimaVenda.equalsIgnoreCase("não");
+                    if (!respostaUltimaValida) {
+                        System.out.println(">> Resposta inválida! Digite s (sim) ou n (não).");
+                    }
+                }
 
                 if (ultimaVenda.equalsIgnoreCase("s") || ultimaVenda.equalsIgnoreCase("sim")) {
                     sistemaAtivo = false;
 
                     // Cálculo dos impostos CBS (Alíquotas do Novo Sistema Tributário)
-                    double cbsRetidaVenda = faturamentoTotalDia * 0.0921; // 9,21% na Nota Fiscal de Venda
-                    double cbsEfetivaCaixa = faturamentoTotalDia * 0.0368; // 3,68% de impacto real da CBS
+                    double cbsRetidaVenda = Math.round(faturamentoTotalDia * aliquotaCbsBruta * 100.0) / 100.0; // CBS na Nota Fiscal de Venda
+                    double cbsEfetivaCaixa = Math.round(faturamentoTotalDia * aliquotaCbsEfetiva * 100.0) / 100.0; // Impacto real da CBS
 
                     System.out.println("\n=========================================================");
                     System.out.println("       RELATÓRIO FINANCEIRO E DE IMPOSTOS DO DIA         ");
                     System.out.println("=========================================================");
                     System.out.printf("Total de Vendas Concluídas: %d%n", quantidadeVendasDia);
                     System.out.printf("Faturamento Bruto Total:    R$ %.2f%n", faturamentoTotalDia);
+                    System.out.printf("Boletos Aguardando Pagto:   R$ %.2f (não contam no faturamento)%n", boletosAguardandoDia);
                     System.out.println("---------------------------------------------------------");
                     System.out.println("IMPOSTOS E ALÍQUOTAS CBS (NOVO SISTEMA TRIBUTÁRIO):");
-                    System.out.printf("  CBS Bruta nas Notas de Venda (9,21%%):   R$ %.2f%n", cbsRetidaVenda);
-                    System.out.printf("  Impacto Efetivo da CBS no Caixa (3,68%%): R$ %.2f%n", cbsEfetivaCaixa);
+                    System.out.printf("• CBS Bruta nas Notas de Venda (%.2f%%):   R$ %.2f%n", aliquotaCbsBruta * 100, cbsRetidaVenda);
+                    System.out.printf("• Impacto Efetivo da CBS no Caixa (%.2f%%): R$ %.2f%n", aliquotaCbsEfetiva * 100, cbsEfetivaCaixa);
                     System.out.println("---------------------------------------------------------");
                     System.out.printf("GASTO TOTAL COM CBS NO DIA:               R$ %.2f%n", cbsEfetivaCaixa);
-                    System.out.printf("RECEITA LIQUIDA DO DIA (APOS CBS):        R$ %.2f%n", faturamentoTotalDia - cbsEfetivaCaixa);
+                    System.out.printf("RECEITA LIQUIDA DO DIA (APOS CBS):        R$ %.2f%n", Math.round((faturamentoTotalDia - cbsEfetivaCaixa) * 100.0) / 100.0);
                     System.out.println("=========================================================");
                     System.out.println("     EXPEDIENTE ENCERRADO - OBRIGADO E ATÉ AMANHÃ!       ");
                     System.out.println("=========================================================");
@@ -595,6 +732,9 @@ public class ProjetoPi {
                     System.out.println("\n>> Reiniciando o sistema para o próximo cliente...\n");
                 }
             }
+        } catch (NoSuchElementException e) {
+            // Acontece se a entrada de dados terminar de repente (por exemplo, Ctrl+D ou um arquivo de entrada incompleto)
+            System.out.println("\n>> Entrada de dados encerrada. Programa finalizado.");
         }
     }
 }
