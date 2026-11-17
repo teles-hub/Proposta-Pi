@@ -1,3 +1,11 @@
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.InputMismatchException;
 import java.util.NoSuchElementException;
@@ -86,6 +94,161 @@ public class ProjetoPi {
             // Senha do painel administrativo: guardamos o hash (String.hashCode) e não a senha em texto.
             // Para trocar a senha: rode System.out.println("nova senha".hashCode()) e cole o número abaixo.
             int senhaAdminHash = -969161597;
+
+            // ===== ARQUIVOS: pastas onde os dados são salvos =====
+            // Pasta principal e pasta de backup. O backup fica na pasta do usuário do Windows (user.home),
+            // que o Java descobre sozinho, então funciona em qualquer usuário sem escrever o nome dele aqui.
+            // As propriedades "nikestore.principal" e "nikestore.backup" são opcionais: servem só para trocar as pastas em testes.
+            String pastaPrincipal = System.getProperty("nikestore.principal", "C:" + File.separator + "NikeStore" + File.separator + "dados");
+            String pastaBackup = System.getProperty("nikestore.backup", System.getProperty("user.home") + File.separator + "NikeStoreBackup");
+            String[] pastasDestino = {pastaPrincipal, pastaBackup};
+
+            // ===== CARREGAR: se já existir um arquivo salvo (principal ou backup), ele substitui os dados iniciais =====
+            boolean dadosCarregados = false;
+            boolean encontrouArquivoInvalido = false;
+            for (int origem = 0; origem < pastasDestino.length && !dadosCarregados; origem++) {
+                File arquivoLeitura = new File(pastasDestino[origem], "catalogo.txt");
+                if (!arquivoLeitura.exists()) {
+                    continue;
+                }
+
+                // Lê tudo para listas temporárias: os dados reais só são trocados se o arquivo estiver completo e válido
+                ArrayList<Integer> lerCodigosN = new ArrayList<>();
+                ArrayList<String> lerNomesN = new ArrayList<>();
+                ArrayList<Double> lerPrecosN = new ArrayList<>();
+                ArrayList<Integer> lerEstoqueN = new ArrayList<>();
+                ArrayList<Integer> lerCodigosV = new ArrayList<>();
+                ArrayList<String> lerNomesV = new ArrayList<>();
+                ArrayList<Double> lerPrecosV = new ArrayList<>();
+                ArrayList<Integer> lerEstoqueV = new ArrayList<>();
+                double[] lerAliquotas = new double[6];
+                double[] lerDia = new double[3];
+                boolean arquivoValido = true;
+                boolean leuAliquotas = false;
+                boolean leuDia = false;
+                int linhasLidas = 0;
+
+                try (Scanner leitor = new Scanner(arquivoLeitura, "UTF-8")) {
+                    while (leitor.hasNextLine() && arquivoValido) {
+                        String linha = leitor.nextLine().trim();
+                        if (linha.isEmpty()) {
+                            continue;
+                        }
+                        linhasLidas++;
+                        String[] campos = linha.split(";", -1);
+
+                        if (linhasLidas == 1) {
+                            // A primeira linha tem que ser o cabeçalho do arquivo
+                            arquivoValido = linha.equals("NIKESTORE;1");
+                        } else if (campos[0].equals("N") || campos[0].equals("V")) {
+                            // Produto: tipo(N/V);código;nome;preço;estoque
+                            if (campos.length != 5) {
+                                arquivoValido = false;
+                            } else {
+                                try {
+                                    int codigoLido = Integer.parseInt(campos[1].trim());
+                                    String nomeLido = campos[2].trim();
+                                    double precoLido = Double.parseDouble(campos[3].trim());
+                                    int estoqueLido = Integer.parseInt(campos[4].trim());
+                                    ArrayList<Integer> lerCodigosAtual = campos[0].equals("V") ? lerCodigosV : lerCodigosN;
+
+                                    if (nomeLido.isEmpty() || !(precoLido > 0 && precoLido < Double.POSITIVE_INFINITY)
+                                            || estoqueLido < 0 || lerCodigosAtual.indexOf(codigoLido) != -1) {
+                                        arquivoValido = false;
+                                    } else if (campos[0].equals("V")) {
+                                        lerCodigosV.add(codigoLido);
+                                        lerNomesV.add(nomeLido);
+                                        lerPrecosV.add(precoLido);
+                                        lerEstoqueV.add(estoqueLido);
+                                    } else {
+                                        lerCodigosN.add(codigoLido);
+                                        lerNomesN.add(nomeLido);
+                                        lerPrecosN.add(precoLido);
+                                        lerEstoqueN.add(estoqueLido);
+                                    }
+                                } catch (NumberFormatException e) {
+                                    arquivoValido = false;
+                                }
+                            }
+                        } else if (campos[0].equals("ALIQ") && !leuAliquotas) {
+                            // Alíquotas: imposto;taxa;vip;pix;cbsBruta;cbsEfetiva (todas entre 0 e 1)
+                            if (campos.length != 7) {
+                                arquivoValido = false;
+                            } else {
+                                try {
+                                    for (int indiceAliquota = 0; indiceAliquota < 6; indiceAliquota++) {
+                                        lerAliquotas[indiceAliquota] = Double.parseDouble(campos[indiceAliquota + 1].trim());
+                                        if (!(lerAliquotas[indiceAliquota] >= 0 && lerAliquotas[indiceAliquota] <= 1)) {
+                                            arquivoValido = false;
+                                        }
+                                    }
+                                    leuAliquotas = true;
+                                } catch (NumberFormatException e) {
+                                    arquivoValido = false;
+                                }
+                            }
+                        } else if (campos[0].equals("DIA") && !leuDia) {
+                            // Totais do dia: vendas;faturamento;boletos aguardando
+                            if (campos.length != 4) {
+                                arquivoValido = false;
+                            } else {
+                                try {
+                                    int vendasLidas = Integer.parseInt(campos[1].trim());
+                                    double faturamentoLido = Double.parseDouble(campos[2].trim());
+                                    double boletosLidos = Double.parseDouble(campos[3].trim());
+                                    if (vendasLidas < 0 || !(faturamentoLido >= 0 && faturamentoLido < Double.POSITIVE_INFINITY)
+                                            || !(boletosLidos >= 0 && boletosLidos < Double.POSITIVE_INFINITY)) {
+                                        arquivoValido = false;
+                                    } else {
+                                        lerDia[0] = vendasLidas;
+                                        lerDia[1] = faturamentoLido;
+                                        lerDia[2] = boletosLidos;
+                                        leuDia = true;
+                                    }
+                                } catch (NumberFormatException e) {
+                                    arquivoValido = false;
+                                }
+                            }
+                        } else {
+                            arquivoValido = false;
+                        }
+                    }
+                } catch (FileNotFoundException e) {
+                    arquivoValido = false;
+                }
+
+                if (arquivoValido && leuAliquotas && leuDia) {
+                    codigosNormal = lerCodigosN;
+                    nomesNormal = lerNomesN;
+                    precosNormal = lerPrecosN;
+                    estoqueNormal = lerEstoqueN;
+                    codigosVip = lerCodigosV;
+                    nomesVip = lerNomesV;
+                    precosVip = lerPrecosV;
+                    estoqueVip = lerEstoqueV;
+                    aliquotaImposto = lerAliquotas[0];
+                    aliquotaTaxa = lerAliquotas[1];
+                    aliquotaVip = lerAliquotas[2];
+                    aliquotaPix = lerAliquotas[3];
+                    aliquotaCbsBruta = lerAliquotas[4];
+                    aliquotaCbsEfetiva = lerAliquotas[5];
+                    quantidadeVendasDia = (int) lerDia[0];
+                    faturamentoTotalDia = lerDia[1];
+                    boletosAguardandoDia = lerDia[2];
+                    dadosCarregados = true;
+                    System.out.println(">> Dados carregados de: " + arquivoLeitura.getPath());
+                } else {
+                    encontrouArquivoInvalido = true;
+                    System.out.println(">> Aviso: o arquivo " + arquivoLeitura.getPath() + " está incompleto ou inválido. Tentando a próxima pasta...");
+                }
+            }
+            if (!dadosCarregados) {
+                if (encontrouArquivoInvalido) {
+                    System.out.println(">> Nenhum arquivo válido encontrado. Usando os dados iniciais.");
+                } else {
+                    System.out.println(">> Nenhum arquivo salvo encontrado. Usando os dados iniciais.");
+                }
+            }
 
             // Loop principal do sistema
             boolean sistemaAtivo = true;
@@ -223,6 +386,8 @@ public class ProjetoPi {
                                     System.out.println(">> Catálogo inválido! Escolha 1 ou 2.");
                                 } else if (nomeProdutoNovo.isEmpty()) {
                                     System.out.println(">> O nome do produto não pode ficar em branco!");
+                                } else if (nomeProdutoNovo.indexOf(';') != -1) {
+                                    System.out.println(">> O nome do produto não pode ter ponto e vírgula (;)!");
                                 } else if (codigoJaExiste) {
                                     System.out.println(">> Já existe um produto com esse código neste catálogo!");
                                 } else if (!(precoProdutoNovo > 0 && precoProdutoNovo < Double.POSITIVE_INFINITY) || estoqueProdutoNovo < 0) {
@@ -415,15 +580,31 @@ public class ProjetoPi {
 
                     int codigoEscolhido = -1;
                     boolean codigoLido = false;
-                    try {
-                        System.out.print("Digite o código do produto desejado: ");
-                        codigoEscolhido = ent.nextInt();
-                        ent.nextLine(); // Limpeza do buffer
-                        codigoLido = true;
-                    } catch (InputMismatchException e) {
-                        System.out.println("\n[X] Entrada inválida! O código deve ser um número inteiro.");
-                        ent.nextLine(); // Limpa o buffer
-                        codigoEscolhido = -1;
+                    System.out.print("Digite o código do produto desejado: ");
+                    String textoCodigo = ent.nextLine().trim();
+
+                    // Aceita texto junto com o número (ex.: "adsidaoi102"): usa só o último número digitado e ignora o resto
+                    int fimNumero = textoCodigo.length();
+                    while (fimNumero > 0 && (textoCodigo.charAt(fimNumero - 1) < '0' || textoCodigo.charAt(fimNumero - 1) > '9')) {
+                        fimNumero--; // pula o que vier depois do número
+                    }
+                    int inicioNumero = fimNumero;
+                    while (inicioNumero > 0 && textoCodigo.charAt(inicioNumero - 1) >= '0' && textoCodigo.charAt(inicioNumero - 1) <= '9') {
+                        inicioNumero--; // volta até o começo do número
+                    }
+
+                    if (fimNumero == 0) {
+                        System.out.println("\n[X] Entrada inválida! O código deve conter um número.");
+                    } else {
+                        try {
+                            codigoEscolhido = Integer.parseInt(textoCodigo.substring(inicioNumero, fimNumero));
+                            codigoLido = true;
+                            if (!textoCodigo.equals(String.valueOf(codigoEscolhido))) {
+                                System.out.println(">> Código reconhecido: " + codigoEscolhido);
+                            }
+                        } catch (NumberFormatException e) {
+                            System.out.println("\n[X] Entrada inválida! O número do código é grande demais.");
+                        }
                     }
 
                     boolean produtoEncontrado = false;
@@ -449,34 +630,107 @@ public class ProjetoPi {
 
                                 int opcaoCor = 0;
                                 while (opcaoCor < 1 || opcaoCor > totalCoresDisponiveis) {
-                                    try {
-                                        System.out.print("Selecione a opção de cor: ");
-                                        opcaoCor = ent.nextInt();
-                                        ent.nextLine(); // Limpeza do buffer
-                                        if (opcaoCor < 1 || opcaoCor > totalCoresDisponiveis) {
-                                            System.out.println("Opção de cor inválida! Escolha de 1 a " + totalCoresDisponiveis + ".");
+                                    System.out.print("Selecione a cor (digite o número ou o nome): ");
+                                    String textoCor = ent.nextLine().trim();
+
+                                    // Procura um número no texto (ex.: "cor 2" vira 2): vale o último número digitado
+                                    int fimCor = textoCor.length();
+                                    while (fimCor > 0 && (textoCor.charAt(fimCor - 1) < '0' || textoCor.charAt(fimCor - 1) > '9')) {
+                                        fimCor--; // pula o que vier depois do número
+                                    }
+
+                                    if (fimCor > 0) {
+                                        // Tem número no texto: usa o número
+                                        int inicioCor = fimCor;
+                                        while (inicioCor > 0 && textoCor.charAt(inicioCor - 1) >= '0' && textoCor.charAt(inicioCor - 1) <= '9') {
+                                            inicioCor--; // volta até o começo do número
                                         }
-                                    } catch (InputMismatchException e) {
-                                        System.out.println("Entrada inválida! Digite o número da cor.");
-                                        ent.nextLine();
-                                        opcaoCor = 0;
+                                        try {
+                                            opcaoCor = Integer.parseInt(textoCor.substring(inicioCor, fimCor));
+                                        } catch (NumberFormatException e) {
+                                            opcaoCor = 0; // número grande demais
+                                        }
+                                        if (opcaoCor < 1 || opcaoCor > totalCoresDisponiveis) {
+                                            opcaoCor = 0;
+                                            System.out.println("Opção de cor inválida! Escolha de 1 a " + totalCoresDisponiveis + ".");
+                                        } else if (!textoCor.equals(String.valueOf(opcaoCor))) {
+                                            System.out.println(">> Cor reconhecida: " + coresDisponiveis[opcaoCor - 1]);
+                                        }
+                                    } else {
+                                        // Sem número: tenta reconhecer o nome da cor digitado por extenso
+                                        String nomeCor = textoCor.toLowerCase();
+                                        boolean ehPretoBranco = nomeCor.indexOf("preto") != -1 && nomeCor.indexOf("branco") != -1;
+                                        boolean ehBrancoTotal = nomeCor.indexOf("total") != -1
+                                                || (nomeCor.indexOf("branco") != -1 && nomeCor.indexOf("preto") == -1);
+                                        boolean ehVermelhoPreto = nomeCor.indexOf("vermelho") != -1;
+                                        boolean ehAzulCinza = nomeCor.indexOf("azul") != -1 || nomeCor.indexOf("cinza") != -1;
+                                        boolean ehCustom = nomeCor.indexOf("custom") != -1 || nomeCor.indexOf("especial") != -1;
+
+                                        // Só vale se o texto combinar com UMA cor (ex.: "preto" sozinho serve para duas, então não vale)
+                                        int coresReconhecidas = 0;
+                                        int corReconhecida = 0;
+                                        if (ehPretoBranco) {
+                                            coresReconhecidas++;
+                                            corReconhecida = 1;
+                                        }
+                                        if (ehBrancoTotal) {
+                                            coresReconhecidas++;
+                                            corReconhecida = 2;
+                                        }
+                                        if (ehVermelhoPreto) {
+                                            coresReconhecidas++;
+                                            corReconhecida = 3;
+                                        }
+                                        if (ehAzulCinza) {
+                                            coresReconhecidas++;
+                                            corReconhecida = 4;
+                                        }
+                                        if (ehCustom) {
+                                            coresReconhecidas++;
+                                            corReconhecida = 5;
+                                        }
+
+                                        if (coresReconhecidas != 1) {
+                                            System.out.println("Cor não reconhecida! Digite o número ou o nome completo da cor (ex.: Azul/Cinza).");
+                                        } else if (corReconhecida > totalCoresDisponiveis) {
+                                            System.out.println("A cor Custom Especial é exclusiva para clientes com cartão.");
+                                        } else {
+                                            opcaoCor = corReconhecida;
+                                            System.out.println(">> Cor reconhecida: " + coresDisponiveis[opcaoCor - 1]);
+                                        }
                                     }
                                 }
 
                                 // Numeração disponível: 34 ao 45
                                 int tamanhoEscolhido = 0;
                                 while (tamanhoEscolhido < 34 || tamanhoEscolhido > 45) {
-                                    try {
-                                        System.out.print("Digite o tamanho (34 a 45): ");
-                                        tamanhoEscolhido = ent.nextInt();
-                                        ent.nextLine(); // Limpeza do buffer
-                                        if (tamanhoEscolhido < 34 || tamanhoEscolhido > 45) {
-                                            System.out.println("Tamanho inválido! Escolha de 34 a 45.");
-                                        }
-                                    } catch (InputMismatchException e) {
+                                    System.out.print("Digite o tamanho (34 a 45): ");
+                                    String textoTamanho = ent.nextLine().trim();
+
+                                    // Aceita texto junto com o número (ex.: "tam 42" vira 42): vale o último número digitado
+                                    int fimTamanho = textoTamanho.length();
+                                    while (fimTamanho > 0 && (textoTamanho.charAt(fimTamanho - 1) < '0' || textoTamanho.charAt(fimTamanho - 1) > '9')) {
+                                        fimTamanho--; // pula o que vier depois do número
+                                    }
+                                    int inicioTamanho = fimTamanho;
+                                    while (inicioTamanho > 0 && textoTamanho.charAt(inicioTamanho - 1) >= '0' && textoTamanho.charAt(inicioTamanho - 1) <= '9') {
+                                        inicioTamanho--; // volta até o começo do número
+                                    }
+
+                                    if (fimTamanho == 0) {
                                         System.out.println("Entrada inválida! Digite o número do tamanho.");
-                                        ent.nextLine();
-                                        tamanhoEscolhido = 0;
+                                    } else {
+                                        try {
+                                            tamanhoEscolhido = Integer.parseInt(textoTamanho.substring(inicioTamanho, fimTamanho));
+                                        } catch (NumberFormatException e) {
+                                            tamanhoEscolhido = 0; // número grande demais
+                                        }
+                                        if (tamanhoEscolhido < 34 || tamanhoEscolhido > 45) {
+                                            tamanhoEscolhido = 0;
+                                            System.out.println("Tamanho inválido! Escolha de 34 a 45.");
+                                        } else if (!textoTamanho.equals(String.valueOf(tamanhoEscolhido))) {
+                                            System.out.println(">> Tamanho reconhecido: " + tamanhoEscolhido);
+                                        }
                                     }
                                 }
 
@@ -728,8 +982,80 @@ public class ProjetoPi {
                     System.out.println("=========================================================");
                     System.out.println("     EXPEDIENTE ENCERRADO - OBRIGADO E ATÉ AMANHÃ!       ");
                     System.out.println("=========================================================");
+
+                    // Histórico: acrescenta o relatório do dia no arquivo relatorios.txt (modo append) nas duas pastas
+                    String dataHora = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+                    for (int destinoHist = 0; destinoHist < pastasDestino.length; destinoHist++) {
+                        new File(pastasDestino[destinoHist]).mkdirs();
+                        File arquivoHistorico = new File(pastasDestino[destinoHist], "relatorios.txt");
+                        try (BufferedWriter historico = new BufferedWriter(new FileWriter(arquivoHistorico, StandardCharsets.UTF_8, true))) {
+                            historico.write("=== Expediente encerrado em " + dataHora + " ===");
+                            historico.newLine();
+                            historico.write(String.format("Vendas concluídas: %d | Faturamento bruto: R$ %.2f | Boletos aguardando: R$ %.2f",
+                                    quantidadeVendasDia, faturamentoTotalDia, boletosAguardandoDia));
+                            historico.newLine();
+                            historico.write(String.format("CBS bruta (%.2f%%): R$ %.2f | CBS efetiva (%.2f%%): R$ %.2f | Receita líquida: R$ %.2f",
+                                    aliquotaCbsBruta * 100, cbsRetidaVenda, aliquotaCbsEfetiva * 100, cbsEfetivaCaixa,
+                                    Math.round((faturamentoTotalDia - cbsEfetivaCaixa) * 100.0) / 100.0));
+                            historico.newLine();
+                            historico.newLine();
+                        } catch (IOException e) {
+                            System.out.println(">> Aviso: não foi possível gravar o histórico em " + pastasDestino[destinoHist] + " (" + e.getMessage() + ")");
+                        }
+                    }
+
+                    // Novo expediente: zera os totais do dia (o estoque e as alíquotas continuam)
+                    quantidadeVendasDia = 0;
+                    faturamentoTotalDia = 0.0;
+                    boletosAguardandoDia = 0.0;
                 } else {
                     System.out.println("\n>> Reiniciando o sistema para o próximo cliente...\n");
+                }
+
+                // ===== SALVAR: grava catálogo, estoque, alíquotas e totais do dia na pasta principal e no backup =====
+                // Roda no fim de cada atendimento, então cobre as vendas, as mudanças do admin e o encerramento do dia.
+                for (int idxGravar = 0; idxGravar < pastasDestino.length; idxGravar++) {
+                    File pastaSalvar = new File(pastasDestino[idxGravar]);
+                    pastaSalvar.mkdirs(); // cria a pasta se ela ainda não existir
+                    File arquivoTemporario = new File(pastaSalvar, "catalogo.tmp");
+                    File arquivoDefinitivo = new File(pastaSalvar, "catalogo.txt");
+                    boolean gravou = true;
+
+                    // Grava primeiro em um arquivo temporário: se algo falhar no meio, o arquivo bom anterior não se perde
+                    try (BufferedWriter escritor = new BufferedWriter(new FileWriter(arquivoTemporario, StandardCharsets.UTF_8))) {
+                        escritor.write("NIKESTORE;1");
+                        escritor.newLine();
+                        for (int i = 0; i < codigosNormal.size(); i++) {
+                            escritor.write("N;" + codigosNormal.get(i) + ";" + nomesNormal.get(i) + ";" + precosNormal.get(i) + ";" + estoqueNormal.get(i));
+                            escritor.newLine();
+                        }
+                        for (int i = 0; i < codigosVip.size(); i++) {
+                            escritor.write("V;" + codigosVip.get(i) + ";" + nomesVip.get(i) + ";" + precosVip.get(i) + ";" + estoqueVip.get(i));
+                            escritor.newLine();
+                        }
+                        escritor.write("ALIQ;" + aliquotaImposto + ";" + aliquotaTaxa + ";" + aliquotaVip + ";" + aliquotaPix
+                                + ";" + aliquotaCbsBruta + ";" + aliquotaCbsEfetiva);
+                        escritor.newLine();
+                        escritor.write("DIA;" + quantidadeVendasDia + ";" + faturamentoTotalDia + ";" + boletosAguardandoDia);
+                        escritor.newLine();
+                    } catch (IOException e) {
+                        gravou = false;
+                        System.out.println(">> Aviso: não foi possível salvar em " + pastasDestino[idxGravar] + " (" + e.getMessage() + ")");
+                    }
+
+                    // Só troca o arquivo antigo pelo novo se a gravação deu certo
+                    if (gravou) {
+                        if (arquivoDefinitivo.exists()) {
+                            arquivoDefinitivo.delete();
+                        }
+                        if (arquivoTemporario.renameTo(arquivoDefinitivo)) {
+                            if (!sistemaAtivo) {
+                                System.out.println(">> Dados salvos em: " + arquivoDefinitivo.getPath());
+                            }
+                        } else {
+                            System.out.println(">> Aviso: não foi possível finalizar o arquivo em " + pastasDestino[idxGravar]);
+                        }
+                    }
                 }
             }
         } catch (NoSuchElementException e) {
