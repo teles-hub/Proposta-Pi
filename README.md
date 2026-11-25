@@ -81,7 +81,7 @@ Concluído (projeto acadêmico).
 
 | Integrante | Contribuição |
 |---|---|
-| **Cauê Teles** | Aplicação em Java |
+| **Cauê Teles** | Aplicação em Java e Revisão do HTML |
 | **Gabriel Roque** | Interface web (HTML) |
 | **Yuri Vasconcellos** | Pesquisa de mercado e de alíquotas |
 | **Murilo H. P.** | Pesquisa de mercado e de alíquotas |
