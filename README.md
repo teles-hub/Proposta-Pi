@@ -85,7 +85,7 @@ Abra o arquivo `projeto_Hermes(v2).html` em um navegador, ou use a extensão Liv
 
 ## 📊 Status
 
-Projeto acadêmico encerrado. A aplicação Java foi compilada e executada com um fluxo de venda simulado; não há testes automatizados no repositório.
+Projeto acadêmico encerrado. A aplicação Java foi compilada e executada com um fluxo de venda simulado; há um teste automatizado de regressão em `tests/`, executável com `py -3 -m unittest discover -s tests -v`.
 
 ## 👥 Equipe
 
