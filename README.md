@@ -22,7 +22,7 @@ São 20 modelos, 5 cores, numeração de 34 a 45 e pagamento por PIX, crédito, 
 - **Estoque integrado ao carrinho:** o estoque é reduzido quando o item entra no carrinho e restaurado quando ele é removido. Produtos esgotados são bloqueados antes da escolha de cor e tamanho.
 - **Cálculo de valores:** imposto de 4%, taxa de 6% e desconto VIP de 5%, todos sobre o subtotal. O PIX concede mais 5% de desconto sobre o total.
 - **Relatório do dia:** ao encerrar o expediente, o sistema gera um relatório com faturamento, CBS, IBS e lucro. As alíquotas podem ser editadas pelo ADM.
-- **Salvamento seguro:** os dados são gravados em duas cópias (pasta principal e backup) a cada atendimento, e o arquivo só substitui o anterior se estiver completo e válido.
+- **Salvamento com arquivo temporário:** os dados são gravados em duas cópias (pasta principal e backup) a cada atendimento. A escrita usa um arquivo `.tmp` e substitui o anterior quando não ocorre falha de escrita; a validação do conteúdo é feita na leitura dos dados, não antes da substituição.
 - **Tratamento de erros:** texto no lugar de número, preço inválido ou entrada interrompida não derrubam o programa.
 
 ### Exemplo de cálculo
@@ -38,6 +38,8 @@ Cliente VIP, pagando com PIX:
 | **Total a pagar** | **R$ 1.469,99** |
 | Com PIX (−5%) | **R$ 1.396,49** |
 
+Esse exemplo foi reproduzido compilando e executando a aplicação com um fluxo de venda simulado. As alíquotas de CBS/IBS do relatório são premissas adotadas pelo grupo: o próprio código marca a CBS efetiva como premissa sem fonte oficial, a revisar. Elas não devem ser tratadas como orientação tributária.
+
 ## 🧠 Como o código funciona
 
 - **Uma classe, vários métodos:** a aplicação Java não usa orientação a objetos. A lógica fica em métodos `public static` e variáveis da classe.
@@ -48,8 +50,8 @@ Cliente VIP, pagando com PIX:
 ## 🛠️ Tecnologias
 
 - **Java:** aplicação de console, com `ArrayList` e manipulação de arquivos (dados e backups).
-- **HTML5, CSS3 e JavaScript:** demonstração web da interface, com **Tailwind CSS** e **Lucide Icons** carregados por CDN.
-- **Git, GitHub e Visual Studio Code.**
+- **HTML5, CSS3 e JavaScript:** demonstração web da interface, com **Tailwind CSS**, **Lucide Icons**, Google Fonts e uma imagem de QR Code carregados por serviços externos (CDN/API).
+- **Git e GitHub:** versionamento e publicação do projeto.
 
 ## ▶️ Como executar
 
@@ -71,17 +73,17 @@ java ProjetoPi
 
 Abra o arquivo `projeto_Hermes(v2).html` em um navegador, ou use a extensão Live Server no Visual Studio Code. Como as bibliotecas vêm por CDN, é preciso estar conectado à internet.
 
-> A versão web é apenas uma demonstração de interface (front-end). Ela não tem servidor, autenticação segura nem integração com pagamento, e as operações são simuladas no navegador. Ela não está conectada à aplicação Java.
+> A versão web é apenas uma demonstração de interface (front-end). Ela não tem servidor, autenticação segura nem integração com pagamento, e as operações são simuladas no navegador. Ela não está conectada à aplicação Java. As credenciais presentes no código são fixas e servem somente para a demonstração; não devem ser reutilizadas. A demonstração web também diverge da aplicação Java em alguns valores de CBS e não calcula IBS no relatório, apesar dos comentários internos que dizem seguir as mesmas regras.
 
 ## 📊 Status
 
-Concluído (projeto acadêmico).
+Projeto acadêmico encerrado. A aplicação Java foi compilada e executada com um fluxo de venda simulado; não há testes automatizados no repositório.
 
 ## 👥 Equipe
 
 | Integrante | Contribuição |
 |---|---|
-| **Cauê Teles** | Aplicação em Java e Revisão do HTML |
+| **Cauê Teles** | Aplicação em Java |
 | **Gabriel Roque** | Interface web (HTML) |
 | **Yuri Vasconcellos** | Pesquisa de mercado e de alíquotas |
 | **Murilo H. P.** | Pesquisa de mercado e de alíquotas |
