@@ -87,8 +87,3 @@ Concluído (projeto acadêmico).
 | **Murilo H. P.** | Pesquisa de mercado e de alíquotas |
 
 **Orientador:** Prof. Marcus Gália
-
-## 🔗 Contato
-
-- **GitHub:** [teles-hub](https://github.com/teles-hub)
-- **LinkedIn:** [Cauê Teles](https://www.linkedin.com/in/cau%C3%AA-teles-b498b4428/)
