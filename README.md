@@ -69,6 +69,14 @@ javac ProjetoPi.java
 java ProjetoPi
 ```
 
+### Teste automatizado
+
+O teste de regressão compila o Java, executa o fluxo de venda usado na tabela deste README e confirma os valores e os arquivos salvos nas duas pastas. Ele usa diretórios temporários e não altera o repositório.
+
+```bash
+py -3 -m unittest discover -s tests -v
+```
+
 ### Demonstração web
 
 Abra o arquivo `projeto_Hermes(v2).html` em um navegador, ou use a extensão Live Server no Visual Studio Code. Como as bibliotecas vêm por CDN, é preciso estar conectado à internet.
