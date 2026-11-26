@@ -1,4 +1,3 @@
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -17,6 +16,7 @@ public class ProjetoPi {
     // =====================================================================
     // DADOS DO SISTEMA (variáveis da classe, usadas por todos os métodos)
     // =====================================================================
+
     public static Scanner ent;
 
     // Cartões válidos no sistema
@@ -78,6 +78,10 @@ public class ProjetoPi {
     public static double embalagemPorVenda = 5.00;       // embalagem de cada venda
     public static double subsidioFretePorVenda = 10.00;  // subsídio de frete de cada venda
 
+    // Senha do painel administrativo: guardamos o hash (String.hashCode) e não a senha em texto.
+    // Para trocar a senha: rode System.out.println("nova senha".hashCode()) e cole o número abaixo.
+    public static int senhaAdminHash = -969161597;
+
     // Pastas onde os dados são salvos (principal e backup na pasta do usuário)
     public static String pastaPrincipal = System.getProperty("nikestore.principal", "C:" + File.separator + "NikeStore" + File.separator + "dados");
     public static String pastaBackup = System.getProperty("nikestore.backup", System.getProperty("user.home") + File.separator + "NikeStoreBackup");
@@ -86,6 +90,7 @@ public class ProjetoPi {
     // =====================================================================
     // MAIN
     // =====================================================================
+
     public static void main(String[] args) {
         try (Scanner scanner = new Scanner(System.in)) {
             ent = scanner;
@@ -102,13 +107,22 @@ public class ProjetoPi {
                 System.out.println("=========================================");
 
                 String resposta = lerRespostaCartao();
-                boolean possuiCartao;
+                boolean possuiCartao = false;
+                boolean escolhaFeita = false;
 
-                if (ehAdmin(resposta)) {
-                    painelAdmin();
-                    possuiCartao = lerSimNao("Possui cartão exclusivo da loja? (sim [s] / não [n]): ");
-                } else {
-                    possuiCartao = ehSim(resposta);
+                while (!escolhaFeita) {
+                    if (ehAdmin(resposta)) {
+                        boolean voltou = painelAdmin(); // true se digitou 0 na senha
+                        if (voltou) {
+                            resposta = lerRespostaCartao(); // volta a escolher convencional, VIP ou ADM
+                        } else {
+                            possuiCartao = lerSimNao("Possui cartão exclusivo da loja? (sim [s] / não [n]): ");
+                            escolhaFeita = true;
+                        }
+                    } else {
+                        possuiCartao = ehSim(resposta);
+                        escolhaFeita = true;
+                    }
                 }
 
                 boolean clienteExclusivo = false;
@@ -143,6 +157,7 @@ public class ProjetoPi {
     // =====================================================================
     // DADOS INICIAIS
     // =====================================================================
+
     public static void carregarDadosIniciais() {
         for (short i = 1; i <= 10; i++) {
             cartoesNoSistema.add(i);
@@ -183,6 +198,7 @@ public class ProjetoPi {
     // =====================================================================
     // FUNÇÕES AUXILIARES (leitura, validação e cálculo)
     // =====================================================================
+
     public static boolean ehSim(String r) {
         return r.equalsIgnoreCase("s") || r.equalsIgnoreCase("sim");
     }
@@ -276,6 +292,7 @@ public class ProjetoPi {
     // =====================================================================
     // ARQUIVOS: CARREGAR E SALVAR
     // =====================================================================
+
     // Se já existir um arquivo salvo (principal ou backup), ele substitui os dados iniciais
     public static void carregarDados() {
         boolean dadosCarregados = false;
@@ -549,18 +566,24 @@ public class ProjetoPi {
     // =====================================================================
     // PAINEL ADMINISTRATIVO
     // =====================================================================
-    public static boolean pedirSenhaAdmin() {
+
+    // Retorna 1 se a senha estiver certa, 2 se errou as 3 tentativas e 0 se o usuário digitou 0 para voltar
+    public static int pedirSenhaAdmin() {
         int tentativas = 0;
         while (tentativas < 3) {
-            System.out.print("Digite a senha do administrador: ");
+            System.out.print("Digite a senha do administrador (ou 0 para voltar): ");
             String senhaDigitada = ent.nextLine().trim();
-            if (senhaDigitada == "admin123" || senhaDigitada.equals("admin123")) {
-                return true;
+            if (senhaDigitada.equals("0")) {
+                System.out.println(">> Voltando para a escolha inicial...");
+                return 0;
+            }
+            if (senhaDigitada.hashCode() == senhaAdminHash) {
+                return 1;
             }
             tentativas++;
             System.out.println(">> Senha incorreta! Tentativa " + tentativas + " de 3.");
         }
-        return false;
+        return 2;
     }
 
     public static void mostrarMenuAdmin() {
@@ -576,10 +599,15 @@ public class ProjetoPi {
         System.out.print("Escolha uma opção: ");
     }
 
-    public static void painelAdmin() {
-        if (!pedirSenhaAdmin()) {
+    // Retorna true se o usuário digitou 0 na senha para voltar à escolha inicial
+    public static boolean painelAdmin() {
+        int resultadoSenha = pedirSenhaAdmin();
+        if (resultadoSenha == 0) {
+            return true;
+        }
+        if (resultadoSenha == 2) {
             System.out.println(">> Acesso ao painel administrativo negado.\n");
-            return;
+            return false;
         }
 
         boolean emModoAdmin = true;
@@ -614,6 +642,7 @@ public class ProjetoPi {
                 System.out.println(">> Valor numérico inválido! Use apenas números (ex.: 759.99 ou 759,99).\n");
             }
         }
+        return false; // saiu do painel normalmente (opção 6)
     }
 
     public static void alterarPreco() {
@@ -769,6 +798,7 @@ public class ProjetoPi {
     // =====================================================================
     // CARTÃO VIP
     // =====================================================================
+
     // Retorna true se o cartão for válido, false se o cliente digitar 0 para seguir sem cartão
     public static boolean validarCartao() {
         while (true) {
@@ -799,6 +829,7 @@ public class ProjetoPi {
     // =====================================================================
     // COMPRA: CATÁLOGO, PRODUTO, COR, TAMANHO E CARRINHO
     // =====================================================================
+
     public static void limparCarrinho() {
         carrinhoNomes.clear();
         carrinhoPrecos.clear();
@@ -1012,6 +1043,7 @@ public class ProjetoPi {
     // =====================================================================
     // PEDIDO E PAGAMENTO
     // =====================================================================
+
     public static void finalizarPedido(boolean clienteExclusivo) {
         // Cada valor é arredondado para centavos, para a soma nunca divergir do que aparece na tela
         double subtotal = calcularSubtotal();
@@ -1132,6 +1164,7 @@ public class ProjetoPi {
     // =====================================================================
     // FECHAMENTO DO DIA
     // =====================================================================
+
     public static void encerrarExpediente() {
         // Soma o dia no acumulado (que não zera e fica salvo no arquivo)
         acumVendas += quantidadeVendasDia;
@@ -1220,4 +1253,4 @@ public class ProjetoPi {
             }
         }
     }
-}
+                                    }
